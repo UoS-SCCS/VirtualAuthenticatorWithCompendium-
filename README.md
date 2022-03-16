@@ -1,4 +1,7 @@
-# Virtual WebAuthn Authenticator
+# Virtual WebAuthn Authenticator with Compendium
+This contains an updated verion of the Virtual WebAuthn Authenticator integrated the Compendium companion device for encryption and user verification.
+
+
 This repository contains the development of a Virtual CTAP2 WebAuthn authenticator. The authenticator is intended to provide a platform for testing and development of WebAuthn/CTAP2 protocols and extensions.
 
 It provides a code base for two kinds of authenticators. Firstly, a software only authenticator, second, a proof of concept implementation of a Trusted Platform Module (TPM) based authenticator, with associated interfaces and libraries for using a TPM as the underlying credential store. It is the first in a series of open source contributions that we will make in the area of WebAuthn authenticator platforms.
@@ -15,4 +18,5 @@ Development Team:
 ## Setup
 Setup instructions for the TPM and the Virtual Authenticator are available as follows:
 * [TPM Setup](./tpm/README.md)
+* [Compendium Setup](./compendiumsetup.md)
 * [Virtual Authenticator Setup](./SETUP.md)
