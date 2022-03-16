@@ -1,0 +1,16 @@
+certifi==2021.10.8
+cffi==1.15.0
+charset-normalizer==2.0.12
+cryptography==36.0.1
+idna==3.3
+importlib-metadata==4.11.3
+jeepney==0.7.1
+keyring==23.5.0
+Pillow==9.0.1
+pycparser==2.21
+qrcode==7.3.1
+requests==2.27.1
+SecretStorage==3.3.1
+urllib3==1.26.8
+websockets==10.2
+zipp==3.7.0
