@@ -664,7 +664,7 @@ class AuthenticatorGetAssertionParameters:
             bool: True if required, False if not
         """
         if AUTHN_GET_ASSERTION.OPTIONS.value in self.parameters:
-            if AUTHN_GET_ASSERTION.OPTIONS.value in \
+            if AUTHN_GET_ASSERTION.OPTIONS_UV.value in \
                 self.parameters[AUTHN_GET_ASSERTION.OPTIONS.value]:
                 return self.parameters[AUTHN_GET_ASSERTION.OPTIONS.value][AUTHN_GET_ASSERTION.OPTIONS_UV.value]
             return False
