@@ -292,10 +292,16 @@ class EncryptedJSONAuthenticatorStorage(JSONAuthenticatorStorage):
     """Concrete implementation of DICEAuthenticatorStorage
     that stores contents in an encrypted JSON file
     """
-    def __init__(self, path:str, pwd:str):
+    def __init__(self, path:str, pwd:str=None, key:str=None):
         self._key = None
         self._salt = None
-        self._prep_crypto(pwd,path)
+        self.has_salt = False
+        if pwd is not None:
+            self.has_salt = True
+            self._prep_crypto(pwd,path)
+        elif key is not None:
+            self.has_salt = False
+            self._key = key
         super().__init__(path)
 
     def _prep_crypto(self,pwd:str, path:str)->bytes:
@@ -323,7 +329,8 @@ class EncryptedJSONAuthenticatorStorage(JSONAuthenticatorStorage):
             fernet = Fernet(self._key)
             token = fernet.encrypt(data.encode("UTF-8"))
             with open(self._path,"wb") as file:
-                file.write(self._salt)
+                if self.has_salt:
+                    file.write(self._salt)
                 file.write(token)
             return True
         except EnvironmentError:
@@ -333,7 +340,8 @@ class EncryptedJSONAuthenticatorStorage(JSONAuthenticatorStorage):
     def _read_from_json(self):
         data = None
         with open(self._path,"rb") as file:
-            self._salt = file.read(16)
+            if self.has_salt:
+                self._salt = file.read(16)
             data = file.read()
 
         fernet = Fernet(self._key)
