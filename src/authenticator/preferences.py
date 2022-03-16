@@ -37,6 +37,9 @@ class PREFERENCE_KEY(Enum):
     """
     RK = "resident_key"
     AUTH_STORE = "auth_store"
+    DEVICE_ID = "device_id"
+    VERIFICATION_KEY = "verification_key"
+    ENCRYPTED_KEY = "encrypted_key"
 class DICEPreferences():
     """ Manages application preferences
     """
@@ -70,6 +73,27 @@ class DICEPreferences():
         if key.value in self._prefs:
             return self._prefs[key.value]
         return default
+
+    def get_device_id(self)->str:
+        return self._get_value(PREFERENCE_KEY.DEVICE_ID,None)
+
+    def set_device_id(self, device_id:str):
+        self._prefs[PREFERENCE_KEY.DEVICE_ID.value] = device_id
+        self._write_prefs()
+
+    def get_verification_key(self)->str:
+        return self._get_value(PREFERENCE_KEY.VERIFICATION_KEY,None)
+
+    def set_verification_key(self, verification_key:str):
+        self._prefs[PREFERENCE_KEY.VERIFICATION_KEY.value] = verification_key
+        self._write_prefs()
+
+    def get_encrypted_key(self)->str:
+        return self._get_value(PREFERENCE_KEY.ENCRYPTED_KEY,None)
+
+    def set_encrypted_key(self, encrypted_key:str):
+        self._prefs[PREFERENCE_KEY.ENCRYPTED_KEY.value] = encrypted_key
+        self._write_prefs()
 
     def get_resident_key(self)->bool:
         """Get whether to use a resident key
