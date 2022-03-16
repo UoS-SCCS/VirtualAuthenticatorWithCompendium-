@@ -47,7 +47,7 @@ from crypto.tpm_es256_crypto_provider import TPMES256CryptoProvider
 from crypto.es256_crypto_provider import ES256CryptoProvider
 from crypto.aes_credential_wrapper import AESCredentialWrapper
 from crypto.algs import PUBLIC_KEY_ALG
-from authenticator.ui import DICEAuthenticatorListener,DICEAuthenticatorUI
+from authenticator.ui import CompendiumError, DICEAuthenticatorListener,DICEAuthenticatorUI
 from authenticator.diceauthenticator import DICEAuthenticator
 from authenticator.datatypes import (DICEAuthenticatorException,AuthenticatorGetClientPINParameters,
     AuthenticatorGetAssertionParameters,AuthenticatorMakeCredentialParameters,
@@ -118,6 +118,17 @@ class DICEKey(DICEAuthenticator,DICEAuthenticatorListener):
         self.get_info_resp.add_pin_uv_supported_protocol(AUTHN_GETINFO_PIN_UV_PROTOCOL.VERSION_1)
         #self.get_info_resp.add_algorithm(PublicKeyCredentialParameters(PUBLIC_KEY_ALG.RS256))
 
+    def check_user_validation_registered(self)->bool:
+        """Checks if the authenticator is registered with a Companion
+        Device for user verification
+
+        Returns:
+            bool: True if it is, False if not
+        """
+        if self._prefs.get_verification_key() is not None:
+            return True
+        else:
+            return self._ui.register_for_user_verfication()
     def validate_uv_check_value_exists(self, password:str)->bool:
         """Checks that user verification value is set and working
 
@@ -164,10 +175,14 @@ class DICEKey(DICEAuthenticator,DICEAuthenticatorListener):
     def post_ui_load(self):
         #will be called on a new thread
         log.debug("In post UI load method, asking for password")
-        pwd = self._ui.get_user_password("Please enter your password:")
+        key = self._ui.get_user_password("Please enter your password:")
+        if isinstance(key, CompendiumError):
+            log.debug("Error getting encryption key from Companion Device")
+            self._ui.shutdown()
+            return
         log.debug("Initialising Encrypted Storage")
         try:
-            self._storage = self._storage_cls(path=self._prefs.get_auth_store_path(),pwd=pwd)
+            self._storage = self._storage_cls(path=self._prefs.get_auth_store_path(),key=key)
 
         except InvalidToken:
             log.debug("Incorrect password entered")
@@ -185,10 +200,15 @@ class DICEKey(DICEAuthenticator,DICEAuthenticatorListener):
             self.get_info_resp.set_option(AUTHN_GETINFO_OPTION.CLIENT_PIN,False)
 
         try:
-            self.validate_uv_check_value_exists(pwd)
-            self._user_verification_capable = True
-            self.get_info_resp.set_option(AUTHN_GETINFO_OPTION.USER_VERIFICATION,True)
-            auth.debug("User Verification setup, advertising capability")
+            #self.validate_uv_check_value_exists(pwd)
+
+            self._user_verification_capable= self.check_user_validation_registered()
+            if(self._user_verification_capable):
+                self.get_info_resp.set_option(AUTHN_GETINFO_OPTION.USER_VERIFICATION,True)
+                auth.debug("User Verification setup, advertising capability")
+            else:
+                log.debug("User verification check failed will set as not available")
+                self._user_verification_capable = False
         except InvalidToken:
             log.debug("User verification check failed will set as not available")
             self._user_verification_capable = False
@@ -200,7 +220,7 @@ class DICEKey(DICEAuthenticator,DICEAuthenticatorListener):
 
             if tpm_user_key is None:
                 self._storage.set_string("TPM_USER_KEY",
-                    tpm_crypto_provider.create_user_key(getpass.getuser(),pwd))
+                    tpm_crypto_provider.create_user_key(getpass.getuser(),base64.encodebytes(os.urandom(16)).decode("UTF-8")))
             else:
                 tpm_crypto_provider.load_user_key(self._storage.get_string("TPM_USER_KEY"))
 
@@ -244,20 +264,29 @@ class DICEKey(DICEAuthenticator,DICEAuthenticatorListener):
         user_verified = False
         user_presence=False
         if self._user_verification_capable and params.require_user_verification():
-            pwd = self._ui.check_user_verification("<b>"+params.get_rp_entity().get_name() + \
-                "</b> requests access to your Authenticator. \n\nEnter your password to authorise.")
+            pwd = self._ui.check_user_verification(params.get_rp_entity().get_name() + \
+                " requests access to your Authenticator.")
             if isinstance(pwd,bool):
                 if not pwd:
                     raise DICEAuthenticatorException(
                     ctap.constants.CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED,
                          "User Verification Denied")
-            if self.validate_uv_check_value(pwd):
-                auth.debug("User verified")
-                user_verified=True
-                user_presence=True
-            else:
+                else:
+                    auth.debug("User verified")
+                    user_verified=True
+                    user_presence=True
+            elif isinstance(pwd,CompendiumError):
+                auth.debug("Error getting user verification")
                 raise DICEAuthenticatorException(
                     ctap.constants.CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED, "User Verification Denied")
+            else:
+                if self.validate_uv_check_value(pwd):
+                    auth.debug("User verified")
+                    user_verified=True
+                    user_presence=True
+                else:
+                    raise DICEAuthenticatorException(
+                        ctap.constants.CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED, "User Verification Denied")
         else:
             user_presence = self._ui.check_user_presence(
                 params.get_rp_entity().get_name() + " requests access to your Authenticator.")
@@ -352,19 +381,28 @@ class DICEKey(DICEAuthenticator,DICEAuthenticatorListener):
         user_verified = False
         user_presence=False
         if self._user_verification_capable and params.require_user_verification():
-            pwd = self._ui.check_user_verification("<b>" + params.get_rp_id() +"</b>" + \
-                " requests access to your Authenticator. \n\nEnter your password to authorise.")
+            pwd = self._ui.check_user_verification(params.get_rp_id() + \
+                " requests access to your Authenticator.")
             if isinstance(pwd,bool):
                 if not pwd:
                     raise DICEAuthenticatorException(
                     ctap.constants.CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED, "User Verification Denied")
-            if self.validate_uv_check_value(pwd):
-                auth.debug("User verified")
-                user_verified=True
-                user_presence=True
-            else:
+                else:
+                    auth.debug("User verified")
+                    user_verified=True
+                    user_presence=True
+            elif isinstance(pwd,CompendiumError):
+                auth.debug("Error getting user verification")
                 raise DICEAuthenticatorException(
                     ctap.constants.CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED, "User Verification Denied")
+            else:
+                if self.validate_uv_check_value(pwd):
+                    auth.debug("User verified")
+                    user_verified=True
+                    user_presence=True
+                else:
+                    raise DICEAuthenticatorException(
+                        ctap.constants.CTAP_STATUS_CODE.CTAP2_ERR_OPERATION_DENIED, "User Verification Denied")
         else:
             user_presence = self._ui.check_user_presence(
                 "<b>" + params.get_rp_id() + "</b> requests access to your Authenticator.")
